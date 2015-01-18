@@ -201,7 +201,7 @@ func main() {
         os.Exit(1)
     }
     
-    options := []util.Option{
+    options := []util.Option {
         &util.OptStr    { "description,d",  descDesc,  &desc       },
         &util.OptMulStr { "files,f",        descFiles, &files      },
         &util.OptBool   { "help",           descHelp,  &help       },
@@ -214,9 +214,16 @@ func main() {
         &util.OptMulStr { "user,u",         descUsers, &users      },
     }
     
-    err = util.ParseCommandLine(options, os.Args[1:])
+    no, err := util.ParseCommandLine(options, os.Args[1:])
     if err != nil {
         util.Error(err)
+        os.Exit(1)
+    }
+    
+    if len(no) > 0 {
+        for _, x := range no {
+            fmt.Printf("Unrecognized option: %s\n", x)
+        }
         os.Exit(1)
     }
 
@@ -230,7 +237,7 @@ func main() {
         util.Error("Invalid file: " + err.Error())
         os.Exit(1)
     }
-    
+
     api := gist.NewGistAPI()
     var gist *gist.Gist
     

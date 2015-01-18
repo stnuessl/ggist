@@ -219,86 +219,98 @@ func possibleArgs(argMap map[string]Option, argv[]string) []string {
     return argv[:i]
 }
 
-func setOpt(argv []string, i int, argMap[string]Option) (int, error) {
+func setOpt(opt Option, 
+            argMap map[string]Option,
+            argv []string, 
+            i int) (int, error) {
     
-    opt, ok := argMap[argv[i]]
-    if ok {
-        switch opt.(type) {
-            case *OptBool:
-                opt.Set("")
-                continue
+    list := possibleArgs(argMap, argv[i + 1:])
+    i += len(list)
+    
+    switch opt.(type) {
+    case *OptBool:
+        if len(list) > 0 {
+            return 0, errors.New("Invalid argument - none exspected.")
         }
         
-        list := possibleArgs(argMap, argv[i + 1:])
-        i += len(list)
-        
-        if len(args) == 0 {
-            err := "Missing argument for option " + argv[i]
-            return 0, errors.New(err)
+        err := opt.Set("")
+        if err != nil {
+            return 0, err
+        }
+    case *OptMulStr, *OptMulInt:
+        if len(list) == 0 {
+            msg := "Invalid argument - at least one exspected."
+            return 0, errors.New(msg)
         }
         
-        for _, x := range args {
+        
+        for _, x := range list {
             err := opt.Set(x)
             if err != nil {
                 return 0, err
             }
         }
         
-        return i, nil
-    } else {
-        return 0, errors.New("Unrecognized option: " + argv[i])
-    }
-}
-
-func ParseCommandLine(opts []Option, argv []string) error {
-    argMap, err := newArgumentMap(opts)
-    if err != nil {
-        return err
-    }
-    
-    for k, _ := range argMap {
-        fmt.Printf("Option: %s\n", k)
-    }
-    
-    return nil
-    
-    argc := len(argv)
-    
-    for i := 0; i < argc; i++ {
-        s := argv[i]
-        
-        sLen := len(s)
-        
-        switch {
-        case sLen > 1 && s[0] == '-' && s[1] == '-':
-            s = s[2:]
-            
-            i, err = setOpt(argv, i, argMap)
-            if err != nil {
-                return err
-            }
-        case sLen > 0 && s[0] == '-':
-            s = s[1:]
-            
-            for _, x := range s {
-                i, err = setOpt(argv, i, argMap)
-                if err != nil {
-                    return err
-                }
-            }
-        default:
-            continue
+        i += len(list)
+    case *OptInt, *OptStr:
+        if len(list) != 1 {
+            msg := "Exactly one argument exspected, "
+            msg += fmt.Sprintf("%d provided.", len(list))
+            return 0, errors.New(msg)
         }
         
-        opt, ok := argMap[argv[i]]
-        if ok {
-            
-        } else {
-            
-        } 
+        
+        err := opt.Set(list[0])
+        if err != nil {
+            return 0, err
+        }
+        
+        i += 1
+    default:
+        return 0, errors.New("Invalid option type")
     }
     
-    return nil
+    return i, nil
+}
+
+func ParseCommandLine(opts []Option, argv []string) ([]string, error) {
+    argMap, err := newArgumentMap(opts)
+    if err != nil {
+        return nil, err
+    }
+    
+    args := make([]string, 0, len(argv) + 4);
+    
+    for _, x := range argv {
+        
+        if len(x) > 1 && x[0] == '-' && x[1] == '-' {
+            args = append(args, x[2:])
+        } else if len(x) > 1 && x[0] == '-' && x[1] != '-' {
+            args = append(args, x[1:])
+        } else {
+            args = append(args, x)
+        }
+    }
+    
+    noOpts := make([]string, 0, len(args));
+    
+    for i := 0; i < len(args); i++ {
+        arg := args[i]
+        
+        opt, ok := argMap[arg]
+        if ok {
+            j, err := setOpt(opt, argMap, args, i)
+            if err != nil {
+                return nil, err
+            }
+            
+            i = j
+        } else {
+            noOpts = append(noOpts, arg)
+        }
+    }
+    
+    return noOpts, nil
 }
 
 func PrintCommandHelp(opts []Option) {
